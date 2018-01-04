@@ -1,10 +1,30 @@
 from keras.layers import Input, Dense
 from keras.models import Model
+import tensorflow as tf
+import numpy as np
 import warnings
+import keras.backend.tensorflow_backend as KTF
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')
-import numpy as np
 
+
+def get_default_session(gpu_fraction=0.8):
+    n_threads = 14
+    np.random.seed(0)  # 设置随机数种子,保证实验可重复
+
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
+
+    # Launch session
+    session_conf = tf.ConfigProto(
+        intra_op_parallelism_threads=n_threads,
+        inter_op_parallelism_threads=n_threads,
+        gpu_options=gpu_options,
+    )
+    sess = tf.Session(config=session_conf)
+    return sess
 
 class DQN:
     def __init__(self,
@@ -32,6 +52,7 @@ class DQN:
         self.batch_size = batch_size
         self.memory = np.zeros((self.memory_size, status_dim * 2 + action_dim + reward_dim))
         self.eval_network, self.target_network = self._build_net()
+        self.losses = []
         print('epsilon: %d ' % epsilon)
         print('n_actions: %d ' % n_actions)
         print('gamma: %d ' % gamma)
@@ -61,6 +82,8 @@ class DQN:
             s_ = np.zeros((self.status_dim))
         try:
             transition = np.concatenate((s, [a, r], s_))
+            self.memory[index, :] = transition
+            self.memory_counter += 1
         except:
             print('ERROR:')
             print('s:')
@@ -75,10 +98,11 @@ class DQN:
         # if self.memory_counter < self.memory_size:
         #     self.memory.append(transition)
         # else:
-        self.memory[index, :] = transition
-        self.memory_counter += 1
+
 
     def _build_net(self):
+        #KTF.set_session(get_default_session())
+
         # Eval Network
         eval_model_inputs = Input(shape=(self.status_dim,))
         eval_model_l1 = Dense(64, activation='relu')(eval_model_inputs)
@@ -107,8 +131,8 @@ class DQN:
         batch_memory = self.memory[batch_indices, :]
 
         # use two network to predict status's q value
-        batch_q_eval = self.eval_network.predict(batch_memory[:, :self.status_dim], self.batch_size,verbose=0)
-        batch_q_next = self.target_network.predict(batch_memory[:, -self.status_dim:], self.batch_size,verbose=0)
+        batch_q_eval = self.eval_network.predict(batch_memory[:, :self.status_dim], self.batch_size)#,verbose=0
+        batch_q_next = self.target_network.predict(batch_memory[:, -self.status_dim:], self.batch_size)#,verbose=0
 
         # print(type(batch_q_eval))
         # print(type(batch_q_eval))
@@ -127,7 +151,24 @@ class DQN:
         batch_q_target = batch_q_eval.copy()
         batch_q_target[batch_indices, eval_act_index] = reward + self.gamma * np.max(batch_q_next, axis=1)
 
-        self.eval_network.evaluate(batch_memory[:, :self.status_dim],
+        losses = self.eval_network.evaluate(batch_memory[:, :self.status_dim],
                                    batch_q_target,
-                                   verbose=0,
+                                   # verbose=0,
                                    batch_size=self.batch_size)
+
+        # print loss to see if training work
+        for loss in np.nditer(losses):
+            self.losses.append(loss)
+
+
+        printedloss = self.losses[::100]
+        if self.learn_counter % 10000 == 0:
+            plt.figure()
+            plt.plot(range(len(printedloss)), printedloss)
+            plt.xlabel('learning step')
+            plt.ylabel('loss')
+            plt.savefig('%05d.png' % self.learn_counter)
+            del printedloss
+
+        self.learn_counter += 1
+

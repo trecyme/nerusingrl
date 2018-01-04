@@ -86,6 +86,7 @@ while (<STDIN>) {
    elsif ($nbrOfFeatures != $#features and @features != 0) {
       printf STDERR "unexpected number of features: %d (%d)\n",
          $#features+1,$nbrOfFeatures+1;
+      printf STDERR "unexpected line: %s \n", $line;
       exit(1);
    }
    if (@features == 0 or 
