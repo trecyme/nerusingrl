@@ -95,3 +95,71 @@ def load_conll_dataset_tokens(path):
         # self.dataset = dataset
         print('[' + util.now_time() + '] 加载结束')
         return all_lines, label_types
+
+
+    '''
+        从指定path，加载conll格式的train/valid/test数据集
+        例如，加载./conll2003/en/eng.testa，解析成若干句子，句子由若干行，每行由词及其标签等组成，即无法判断句子在文章的位置
+    '''
+
+
+
+def load_conll_dataset_sents(path):
+
+    # dataset = []  # 该数据集的所有文档
+    # doc = []  # 一篇文档的所有句子
+    sentences = []  # 一个句子包含词，词由行组成
+    label_types = []
+    textfile_count = 0
+    try:
+        bindex = path.rindex('/')
+    except:
+        bindex = 0
+    textfile_prefix = path[bindex:]
+    if path:
+        print('[' + util.now_time() + '] 开始加载conll数据集:"' + path + '"...')
+        file = codecs.open(path, "r", "UTF-8")
+        textfile_name = ''
+        newsentence = []
+
+        for line in file:
+            line = line.strip().split(' ')
+            newline = []
+
+            if '-DOCSTART-' in line[0]:  # 新的文档
+                # if len(doc) != 0:
+                #     dataset.append(doc)
+                # doc = []
+
+                textfile_count += 1
+                textfile_name = (textfile_prefix + "%d") % textfile_count
+                if len(newsentence) != 0:
+                    sentences.append(newsentence)
+                    newsentence = []
+            elif len(line) == 0 or len(line[0]) == 0:  # 新的句子
+                # if len(sentence) != 0:
+                #     doc.append(sentence)
+                # sentence = []
+
+                if len(newsentence) != 0:
+                    sentences.append(newsentence)
+                    newsentence = []
+            else:  # 句子的词和标签
+                # sentence.append({line[0]:line[3]})
+                if line[3] not in label_types:
+                    label_types.append(line[3])
+
+                newline.append(line[0])
+                newline.append(textfile_name)
+                newline.append(0)
+                newline.append(0)
+                newline.append(line[1])
+                newline.append(line[2])
+                newline.append(line[3])
+                newsentence.append(newline)
+
+        # self.dataset = dataset
+        print('[' + util.now_time() + '] 加载结束')
+        return sentences, label_types
+
+
